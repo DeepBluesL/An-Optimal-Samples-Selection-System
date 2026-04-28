@@ -264,11 +264,26 @@ class ComputeScreen(Screen):
 
     def map_canonical_groups_to_samples(self, groups):
         samples = sorted(self._samples)
-        return [tuple(samples[index - 1] for index in group) for group in groups]
+        if not groups:
+            return []
+
+        max_index = len(samples)
+        if all(1 <= value <= max_index for group in groups for value in group):
+            return [tuple(samples[index - 1] for index in group) for group in groups]
+
+        return [tuple(group) for group in groups]
 
     def map_sample_groups_to_canonical(self, groups):
         index_by_sample = {sample: i + 1 for i, sample in enumerate(sorted(self._samples))}
-        return [tuple(sorted(index_by_sample[value] for value in group)) for group in groups]
+        canonical_groups = []
+        for group in groups:
+            canonical_group = []
+            for value in group:
+                if value not in index_by_sample:
+                    return None
+                canonical_group.append(index_by_sample[value])
+            canonical_groups.append(tuple(sorted(canonical_group)))
+        return canonical_groups
 
     def apply_result(self, groups, solve_time: float, method: str, status: str) -> None:
         self._last_groups = groups
@@ -282,10 +297,11 @@ class ComputeScreen(Screen):
             j = _parse_int(self.ids.j_in.text, "j")
             s = _parse_int(self.ids.s_in.text, "s")
             canonical_groups = self.map_sample_groups_to_canonical(groups)
-            self.get_db().save_project_result(
-                n, k, j, s, canonical_groups, status,
-                method=method, source="mobile solve/cache",
-            )
+            if canonical_groups is not None:
+                self.get_db().save_project_result(
+                    n, k, j, s, canonical_groups, status,
+                    method=method, source="mobile solve/cache",
+                )
         except Exception:
             pass
 

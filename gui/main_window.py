@@ -515,11 +515,26 @@ class MainWindow(QMainWindow):
 
     def map_canonical_groups_to_samples(self, groups):
         samples = sorted(self.current_samples)
-        return [tuple(samples[index - 1] for index in group) for group in groups]
+        if not groups:
+            return []
+
+        max_index = len(samples)
+        if all(1 <= value <= max_index for group in groups for value in group):
+            return [tuple(samples[index - 1] for index in group) for group in groups]
+
+        return [tuple(group) for group in groups]
 
     def map_sample_groups_to_canonical(self, groups):
         index_by_sample = {sample: i + 1 for i, sample in enumerate(sorted(self.current_samples))}
-        return [tuple(sorted(index_by_sample[value] for value in group)) for group in groups]
+        canonical_groups = []
+        for group in groups:
+            canonical_group = []
+            for value in group:
+                if value not in index_by_sample:
+                    return None
+                canonical_group.append(index_by_sample[value])
+            canonical_groups.append(tuple(sorted(canonical_group)))
+        return canonical_groups
 
     def on_solve_finished(self, result, solve_time, method, status):
         """Handle solver completion."""
@@ -532,10 +547,11 @@ class MainWindow(QMainWindow):
         self.last_status = status
 
         canonical_groups = self.map_sample_groups_to_canonical(result)
-        self.db_manager.save_project_result(
-            self.n_spin.value(), self.k_spin.value(), self.j_spin.value(), self.s_spin.value(),
-            canonical_groups, status, method=method, source="local solve/cache",
-        )
+        if canonical_groups is not None:
+            self.db_manager.save_project_result(
+                self.n_spin.value(), self.k_spin.value(), self.j_spin.value(), self.s_spin.value(),
+                canonical_groups, status, method=method, source="local solve/cache",
+            )
 
         # Update stats
         self.stats_label.setText(
